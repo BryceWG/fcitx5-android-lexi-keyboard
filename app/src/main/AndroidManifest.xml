@@ -27,6 +27,9 @@
         <intent>
             <action android:name="android.view.InputMethod" />
         </intent>
+        <!-- 显式声明目标包可见性 -->
+        <package android:name="com.brycewg.asrkb" />
+        <package android:name="com.brycewg.asrkb.pro" />
     </queries>
 
     <permission
