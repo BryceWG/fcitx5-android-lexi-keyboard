@@ -8,14 +8,14 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Binder
 import android.os.IBinder
+import android.os.Parcel
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import com.brycewg.asrkb.aidl.IExternalSpeechService
-import com.brycewg.asrkb.aidl.ISpeechCallback
 import com.brycewg.asrkb.aidl.SpeechConfig
 import org.fcitx.fcitx5.android.input.FcitxInputMethodService
 
@@ -36,34 +36,60 @@ object AsrkbSpeechClient {
         val conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
                 try {
-                    val api = IExternalSpeechService.Stub.asInterface(binder)
-                    if (api == null) {
-                        toast(ctx, "未连接到言犀服务")
-                        unbind(ctx)
-                        return
-                    }
-                    val cb = object : ISpeechCallback.Stub() {
-                        override fun onState(sessionId: Int, state: Int, message: String?) { /* ignore for mock */ }
-                        override fun onPartial(sessionId: Int, text: String?) { /* ignore for mock */ }
-                        override fun onFinal(sessionId: Int, text: String?) {
-                            val t = text ?: return
-                            service.lifecycleScope.launch {
-                                service.commitText(t)
+                    val remote = binder ?: throw IllegalStateException("no binder")
+                    // 准备回调 Binder：仅处理 onFinal，其余忽略
+                    val cbBinder = object : Binder() {
+                        override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
+                            return try {
+                                when (code) {
+                                    CB_onState, CB_onPartial, CB_onAmplitude -> {
+                                        reply?.writeNoException(); true
+                                    }
+                                    CB_onFinal -> {
+                                        data.enforceInterface(DESCRIPTOR_CB)
+                                        val sid = data.readInt()
+                                        val text = data.readString() ?: ""
+                                        service.lifecycleScope.launch { service.commitText(text) }
+                                        reply?.writeNoException(); true
+                                    }
+                                    CB_onError -> {
+                                        data.enforceInterface(DESCRIPTOR_CB)
+                                        val sid = data.readInt()
+                                        val codeVal = data.readInt()
+                                        val msg = data.readString()
+                                        toast(ctx, "语音服务错误: $codeVal")
+                                        reply?.writeNoException(); true
+                                    }
+                                    IBinder.INTERFACE_TRANSACTION -> { reply?.writeString(DESCRIPTOR_CB); true }
+                                    else -> super.onTransact(code, data, reply, flags)
+                                }
+                            } catch (t: Throwable) {
+                                Log.w(TAG, "callback transact handle failed", t)
+                                false
                             }
-                            unbind(ctx)
                         }
-                        override fun onError(sessionId: Int, code: Int, message: String?) {
-                            toast(ctx, "语音服务错误: $code")
-                            unbind(ctx)
-                        }
-                        override fun onAmplitude(sessionId: Int, amplitude: Float) { /* ignore */ }
                     }
+
+                    // 调用 startSession(config, callback) via Binder transact
                     val cfg = SpeechConfig(vendorId = "mock")
-                    val sid = api.startSession(cfg, cb)
-                    if (sid <= 0) {
-                        toast(ctx, "无法启动会话: $sid")
-                        unbind(ctx)
+                    val data = Parcel.obtain()
+                    val reply = Parcel.obtain()
+                    var sid = -999
+                    try {
+                        data.writeInterfaceToken(DESCRIPTOR_SVC)
+                        // write config as Parcelable (presence flag + parcel)
+                        data.writeInt(1)
+                        cfg.writeToParcel(data, 0)
+                        // write callback binder
+                        data.writeStrongBinder(cbBinder)
+                        remote.transact(TRANSACTION_startSession, data, reply, 0)
+                        reply.readException()
+                        sid = reply.readInt()
+                    } finally {
+                        try { data.recycle() } catch (_: Throwable) {}
+                        try { reply.recycle() } catch (_: Throwable) {}
                     }
+                    if (sid <= 0) { toast(ctx, "无法启动会话: $sid"); unbind(ctx) }
                 } catch (t: Throwable) {
                     Log.w(TAG, "bind/start failed", t)
                     toast(ctx, "无法连接言犀服务")
@@ -86,6 +112,17 @@ object AsrkbSpeechClient {
         }
     }
 
+    // 与服务端保持一致的接口描述符与事务号
+    private const val DESCRIPTOR_SVC = "com.brycewg.asrkb.aidl.IExternalSpeechService"
+    private const val TRANSACTION_startSession = IBinder.FIRST_CALL_TRANSACTION + 0
+
+    private const val DESCRIPTOR_CB = "com.brycewg.asrkb.aidl.ISpeechCallback"
+    private const val CB_onState = IBinder.FIRST_CALL_TRANSACTION + 0
+    private const val CB_onPartial = IBinder.FIRST_CALL_TRANSACTION + 1
+    private const val CB_onFinal = IBinder.FIRST_CALL_TRANSACTION + 2
+    private const val CB_onError = IBinder.FIRST_CALL_TRANSACTION + 3
+    private const val CB_onAmplitude = IBinder.FIRST_CALL_TRANSACTION + 4
+
     private fun unbind(ctx: Context) {
         if (!bound) return
         try { ctx.unbindService(connection!!) } catch (_: Throwable) {}
@@ -101,4 +138,3 @@ object AsrkbSpeechClient {
         } catch (_: Throwable) { }
     }
 }
-
