@@ -53,16 +53,24 @@ jobs:
           echo "commit_msg=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
           echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
+      - name: List build outputs
+        run: |
+          echo "=== Listing APK build outputs ==="
+          find app/build/outputs -name "*.apk" -type f
+
       - name: Rename APK
         run: |
-          cd app/build/outputs/apk/release
-          for file in *.apk; do
-            mv "$file" "fcitx5-android-arm64-v8a-${{ steps.commit_info.outputs.timestamp }}-${{ steps.commit_info.outputs.short_sha }}.apk"
+          # 找到所有 APK 文件并重命名
+          find app/build/outputs/apk -name "*.apk" -type f | while read apk; do
+            dir=$(dirname "$apk")
+            newname="fcitx5-android-arm64-v8a-${{ steps.commit_info.outputs.timestamp }}-${{ steps.commit_info.outputs.short_sha }}.apk"
+            mv "$apk" "$dir/$newname"
+            echo "Renamed: $apk -> $dir/$newname"
           done
 
       - name: Upload APK
         uses: actions/upload-artifact@v5
         with:
           name: fcitx5-android-arm64-v8a-${{ steps.commit_info.outputs.short_sha }}
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/**/*.apk
           retention-days: 30
