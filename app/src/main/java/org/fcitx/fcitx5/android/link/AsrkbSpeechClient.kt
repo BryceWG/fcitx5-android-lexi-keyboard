@@ -27,12 +27,6 @@ object AsrkbSpeechClient {
     fun startMockSession(service: FcitxInputMethodService) {
         if (bound) return
         val ctx = service
-        val intent = Intent().apply {
-            component = ComponentName(
-                "com.brycewg.asrkb",
-                "com.brycewg.asrkb.api.ExternalSpeechService"
-            )
-        }
         val conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
                 try {
@@ -102,12 +96,22 @@ object AsrkbSpeechClient {
             }
         }
         connection = conn
-        try {
-            bound = ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE)
-            if (!bound) toast(ctx, "未找到言犀服务")
-        } catch (t: Throwable) {
-            Log.w(TAG, "bind failed", t)
-            toast(ctx, "绑定失败")
+        // 依次尝试 Pro 包与开源包
+        val candidates = listOf(
+            ComponentName("com.brycewg.asrkb.pro", "com.brycewg.asrkb.api.ExternalSpeechService"),
+            ComponentName("com.brycewg.asrkb", "com.brycewg.asrkb.api.ExternalSpeechService")
+        )
+        for (c in candidates) {
+            val intent = Intent().apply { component = c }
+            try {
+                bound = ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE)
+                if (bound) break
+            } catch (t: Throwable) {
+                Log.d(TAG, "bind attempt failed: ${c.packageName}", t)
+            }
+        }
+        if (!bound) {
+            toast(ctx, "未找到言犀服务（Pro/开源）")
             unbind(ctx)
         }
     }
