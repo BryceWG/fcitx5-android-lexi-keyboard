@@ -4,6 +4,9 @@
 # Generated asset descriptor
 /app/src/main/assets/descriptor.json
 
+app/release
+
+
 # Plugins
 # Installed data
 /plugin/*/src/main/assets/usr/

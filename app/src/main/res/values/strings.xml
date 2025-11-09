@@ -319,7 +319,7 @@
     <string name="key_border_stroke">Enable stroke for key border</string>
     <!-- Yanxi AIDL linkage error messages -->
     <string name="asrkb_err_busy">Voice service is busy. Please try again.</string>
-    <string name="asrkb_err_feature_disabled">Enable "Floating voice input" and "External IME link (AIDL)" in Yanxi.</string>
+    <string name="asrkb_err_feature_disabled">Enable "External IME link (AIDL)" and the Accessibility service in Yanxi.</string>
     <string name="asrkb_err_mic_permission">Yanxi lacks microphone permission. Please grant it in system settings.</string>
     <string name="asrkb_err_start_failed_with_code">Failed to start session (code %1$d)</string>
     <string name="asrkb_err_service_error_with_code">Voice service error (code %1$d)</string>
