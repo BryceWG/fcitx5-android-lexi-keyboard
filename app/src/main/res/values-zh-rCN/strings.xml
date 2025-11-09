@@ -319,8 +319,9 @@
     <string name="key_border_stroke">启用按键边框描边</string>
     <!-- Yanxi AIDL linkage error messages -->
     <string name="asrkb_err_busy">语音服务正忙，请稍后再试。</string>
-    <string name="asrkb_err_feature_disabled">请先在言犀中开启“允许外部输入法联动（AIDL）”。</string>
+    <string name="asrkb_err_feature_disabled">请先在言犀中开启"允许外部输入法联动（AIDL）"。</string>
     <string name="asrkb_client_need_mic_permission">小企鹅需要麦克风权限以进行语音输入。</string>
+    <string name="asrkb_err_audio_record_failed">音频录制初始化失败，麦克风可能被其他应用占用。</string>
     <string name="asrkb_err_start_failed_with_code">启动会话失败（错误码 %1$d）</string>
     <string name="asrkb_err_service_error_with_code">语音服务错误（错误码 %1$d）</string>
 </resources>

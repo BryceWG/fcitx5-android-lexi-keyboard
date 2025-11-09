@@ -4,10 +4,12 @@
  */
 package org.fcitx.fcitx5.android.link
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
 import android.os.Parcel
@@ -224,6 +226,26 @@ object AsrkbSpeechClient {
 
     private fun startAudioStreaming(service: FcitxInputMethodService) {
         stopAudioStreaming()
+
+        // 检查录音权限
+        if (ContextCompat.checkSelfPermission(service, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            // 启动权限请求 Activity
+            val intent = Intent(service, MicPermissionActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                service.startActivity(intent)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to start MicPermissionActivity", t)
+                toast(service, service.getString(R.string.asrkb_client_need_mic_permission))
+            }
+            // 通知覆盖层隐藏
+            runCatching { VoiceOverlayUiBridge.onDone?.invoke() }
+            unbind()
+            return
+        }
+
         audioJob = service.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val sr = 16000
             val ch = android.media.AudioFormat.CHANNEL_IN_MONO
@@ -245,7 +267,15 @@ object AsrkbSpeechClient {
                     sr, ch, fmt, bufSize
                 )
                 audioRecord = rec
-                try { rec.startRecording() } catch (e: Throwable) { Log.e(TAG, "AudioRecord MIC failed", e); return@launch }
+                try { rec.startRecording() } catch (e: Throwable) {
+                    Log.e(TAG, "AudioRecord MIC failed", e)
+                    service.lifecycleScope.launch {
+                        toast(service, service.getString(R.string.asrkb_err_audio_record_failed))
+                        runCatching { VoiceOverlayUiBridge.onDone?.invoke() }
+                        unbind()
+                    }
+                    return@launch
+                }
             }
 
             val chunk = ByteArray(chunkBytes)
