@@ -136,7 +136,7 @@
             
         <service
             android:name=".input.FcitxInputMethodService"
-            android:directBootAware="true"
+            android:directBootAware="false"
             android:exported="true"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_INPUT_METHOD">
@@ -184,9 +184,10 @@
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
-            android:directBootAware="true"
+            android:directBootAware="false"
             android:exported="false"
-            tools:node="merge">
+            tools:node="merge"
+            tools:replace="android:directBootAware">
             <!-- do not inject splitties AppCompat -->
             <meta-data
                 android:name="splitties.views.dsl.appcompat.experimental.AppCompatViewInstantiatorInjecter"
