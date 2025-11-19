@@ -20,16 +20,25 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
     private var candidatesView: CandidatesView? = null
 
     private fun setupInputViewEvents(isVirtual: Boolean) {
-        inputView?.handleEvents = isVirtual
-        inputView?.visibility = if (isVirtual) View.VISIBLE else View.GONE
+        val iv = inputView ?: return
+        iv.handleEvents = isVirtual
+        if (isVirtual) {
+            iv.visibility = View.VISIBLE
+            iv.refreshWithCachedEvents()
+        } else {
+            iv.visibility = View.GONE
+        }
     }
 
     private fun setupCandidatesViewEvents(isVirtual: Boolean) {
-        candidatesView?.handleEvents = !isVirtual
+        val cv = candidatesView ?: return
+        cv.handleEvents = !isVirtual
         // hide CandidatesView when entering virtual keyboard mode,
         // but preserve the visibility when entering physical keyboard mode (in case it's empty)
         if (isVirtual) {
-            candidatesView?.visibility = View.GONE
+            cv.visibility = View.GONE
+        } else {
+            cv.refreshWithCachedEvents()
         }
     }
 
@@ -69,7 +78,6 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
 
     private var startedInputView = false
     private var isNullInputType = true
-    private var hasKeyDown = false
 
     private var candidatesViewMode by AppPrefs.getInstance().candidates.mode
 
@@ -96,7 +104,6 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
      * @return should force show input views on hardware key down
      */
     fun evaluateOnKeyDown(e: KeyEvent, service: FcitxInputMethodService): Boolean {
-        hasKeyDown = true
         if (startedInputView) {
             // filter out back/home/volume buttons and combination keys
             if (e.unicodeChar != 0) {
@@ -147,14 +154,13 @@ class InputDeviceManager(private val onChange: (Boolean) -> Unit) {
     }
 
     /**
-     * @return should force show inputView for [CandidatesView] when input method changes
+     * @return should force show inputView for [CandidatesView] when input method switched by user
      */
     fun evaluateOnInputMethodChange(): Boolean {
-        return if (isVirtualKeyboard || startedInputView) false else hasKeyDown
+        return !isVirtualKeyboard && !startedInputView
     }
 
     fun onFinishInputView() {
         startedInputView = false
-        hasKeyDown = false
     }
 }
