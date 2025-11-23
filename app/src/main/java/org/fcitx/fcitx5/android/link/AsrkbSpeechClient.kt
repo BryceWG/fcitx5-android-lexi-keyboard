@@ -32,12 +32,21 @@ object AsrkbSpeechClient {
     private var ctxRef: Context? = null
     private var audioJob: kotlinx.coroutines.Job? = null
     private var audioRecord: android.media.AudioRecord? = null
+    private var hasPcmFrame: Boolean = false
 
     fun startHoldSession(service: FcitxInputMethodService) {
-        if (bound && remote != null && sessionId > 0) return
+        if (bound && remote != null && sessionId > 0) {
+            if (!holding) {
+                Log.w(TAG, "reset stale session before starting new hold (state=$currentState)")
+                unbind()
+            } else {
+                return
+            }
+        }
         val ctx = service
         ctxRef = ctx
         holding = true
+        hasPcmFrame = false
         val conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
                 try {
@@ -155,7 +164,7 @@ object AsrkbSpeechClient {
         if (!holding) return
         holding = false
         when (currentState) {
-            STATE_RECORDING -> stopSession()
+            STATE_RECORDING -> if (hasPcmFrame) stopSession() else cancelSession()
             STATE_PROCESSING -> cancelSession()
             else -> cancelSession()
         }
@@ -184,6 +193,7 @@ object AsrkbSpeechClient {
 
     private fun unbind() {
         val ctx = ctxRef
+        stopAudioStreaming()
         try { if (bound && connection != null && ctx != null) ctx.unbindService(connection!!) } catch (_: Throwable) {}
         bound = false
         connection = null
@@ -192,6 +202,7 @@ object AsrkbSpeechClient {
         currentState = STATE_IDLE
         holding = false
         ctxRef = null
+        hasPcmFrame = false
     }
 
     private fun stopSession() {
@@ -299,6 +310,7 @@ object AsrkbSpeechClient {
     private fun writePcmFrame(buf: ByteArray, len: Int, sr: Int, ch: Int) {
         val b = remote ?: return
         if (sessionId <= 0) return
+        if (len > 0) hasPcmFrame = true
         val data = Parcel.obtain(); val reply = Parcel.obtain()
         try {
             data.writeInterfaceToken(DESCRIPTOR_SVC)
